@@ -234,6 +234,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                         | <deleteStatement>
                         | <truncateStatement>
                         | <batchStatement>
+                        | <transactionStatement>
                         ;
 
 <schemaChangeStatement> ::= <createKeyspaceStatement>
@@ -1115,6 +1116,25 @@ def batch_opt_completer(ctxt, cass):
     for opt in ctxt.get_binding('batchopt', ()):
         opts.discard(opt.split()[0])
     return opts
+
+syntax_rules += r'''
+<transactionStatement> ::= <beginTransaction> ";"
+                           [txnstmt]=<transactionStatementMember> ";"
+                                ( [txnstmt]=<transactionStatementMember> ";" )*
+                           <endTransaction>
+                         ;
+<beginTransaction> ::= ( ( "BEGIN" "TRANSACTION"? )
+                       | ( "START" "TRANSACTION" ) )
+                     ;
+<transactionStatementMember> ::= <insertStatement>
+                               | <updateStatement>
+                               | <deleteStatement>
+                               ;
+<endTransaction> ::= ( ( "END" "TRANSACTION"? )
+                     | "COMMIT" )
+                     ;
+'''
+
 
 syntax_rules += r'''
 <truncateStatement> ::= "TRUNCATE" ("COLUMNFAMILY" | "TABLE")? cf=<columnFamilyName>

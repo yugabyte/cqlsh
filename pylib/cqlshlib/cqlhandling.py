@@ -149,10 +149,10 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                 output[-1].extend(stmt)
             else:
                 output.append(stmt)
-            if len(stmt) > 2:
-                if stmt[-3][1].upper() == 'APPLY':
+            if len(stmt) >= 2:
+                if stmt[0][1].upper() in ['APPLY', 'COMMIT', 'END']:
                     in_batch = False
-                elif stmt[0][1].upper() == 'BEGIN':
+                elif stmt[0][1].upper() in ['START', 'BEGIN']:
                     in_batch = True
         return output, in_batch or in_pg_string
 
