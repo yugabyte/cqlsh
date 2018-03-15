@@ -1118,21 +1118,20 @@ def batch_opt_completer(ctxt, cass):
     return opts
 
 syntax_rules += r'''
-<transactionStatement> ::= <beginTransaction> ";"
-                           [txnstmt]=<transactionStatementMember> ";"
-                                ( [txnstmt]=<transactionStatementMember> ";" )*
-                           <endTransaction>
+<transactionStatement> ::= ( "BEGIN" "TRANSACTION"
+                               <transactionStatementMembers>
+                             "END" "TRANSACTION" ) |
+                           ( "START" "TRANSACTION" ";"
+                             <transactionStatementMembers>
+                             "COMMIT" )
                          ;
-<beginTransaction> ::= ( ( "BEGIN" "TRANSACTION"? )
-                       | ( "START" "TRANSACTION" ) )
-                     ;
+<transactionStatementMembers> ::= <transactionStatementMember> ";"
+                                      ( <transactionStatementMember> ";" )*
+                               ;
 <transactionStatementMember> ::= <insertStatement>
                                | <updateStatement>
                                | <deleteStatement>
                                ;
-<endTransaction> ::= ( ( "END" "TRANSACTION"? )
-                     | "COMMIT" )
-                     ;
 '''
 
 
