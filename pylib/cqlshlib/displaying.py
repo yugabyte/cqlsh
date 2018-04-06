@@ -111,6 +111,7 @@ DEFAULT_VALUE_COLORS = dict(
     float=GREEN,
     decimal=GREEN,
     inet=GREEN,
+    jsonb=GREEN,
     boolean=GREEN,
     uuid=GREEN,
     duration=GREEN,

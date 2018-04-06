@@ -1819,7 +1819,7 @@ class ImportConversion(object):
 
     @staticmethod
     def _get_protector(t):
-        if t in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet'):
+        if t in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet', 'jsonb'):
             return lambda v: protect_value(v)
         else:
             return lambda v: v
@@ -2033,6 +2033,7 @@ class ImportConversion(object):
             'int': get_convert_integer_fcn(),
             'varint': get_convert_integer_fcn(),
             'inet': convert_text,
+            'jsonb': convert_text,
             'counter': get_convert_integer_fcn(adapter=long),
             'timestamp': convert_datetime,
             'timeuuid': convert_uuid,
