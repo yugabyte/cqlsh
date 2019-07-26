@@ -267,8 +267,9 @@ def formatter_value_inet(val, colormap, quote=False, **_):
     return format_python_formatted_type(val, colormap, 'inet', quote=quote)
 
 @formatter_for('jsonb')
-def formatter_value_jsonb(val, colormap, quote=False, **_):
-    return format_python_formatted_type(val, colormap, 'jsonb', quote=quote)
+def formatter_value_jsonb(val, encoding, colormap, quote=False, **_):
+    encodedval = format_value_text(val, encoding=encoding, colormap=NO_COLOR_MAP, quote=False)
+    return format_python_formatted_type(encodedval, colormap, 'jsonb', quote=quote)
 
 @formatter_for('bool')
 def format_value_boolean(val, colormap, boolean_styles=None, **_):
