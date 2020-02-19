@@ -49,16 +49,16 @@ from glob import glob
 from uuid import UUID
 
 if sys.version_info[0] != 2 or sys.version_info[1] != 7:
-    sys.exit("\nCQL Shell supports only Python 2.7\n")
+    sys.exit("\nYCQL Shell supports only Python 2.7\n")
 
 # see CASSANDRA-10428
 if platform.python_implementation().startswith('Jython'):
-    sys.exit("\nCQL Shell does not run on Jython\n")
+    sys.exit("\nYCQL Shell does not run on Jython\n")
 
 UTF8 = 'utf-8'
 CP65001 = 'cp65001'  # Win utf-8 variant
 
-description = "CQL Shell for Apache Cassandra"
+description = "Yugabyte Cloud Query Language Shell"
 version = "5.0.1"
 
 readline = None
@@ -1423,7 +1423,7 @@ class Shell(cmd.Cmd):
 
         (DESC may be used as a shorthand.)
 
-          Outputs information about the connected Cassandra cluster, or about
+          Outputs information about the connected YugabyteDB cluster, or about
           the data objects stored in the cluster. Use in one of the following ways:
 
         DESCRIBE KEYSPACES
@@ -1432,10 +1432,10 @@ class Shell(cmd.Cmd):
 
         DESCRIBE KEYSPACE [<keyspacename>]
 
-          Output CQL commands that could be used to recreate the given keyspace,
+          Output YCQL commands that could be used to recreate the given keyspace,
           and the objects in it (such as tables, types, functions, etc.).
           In some cases, as the CQL interface matures, there will be some metadata
-          about a keyspace that is not representable with CQL. That metadata will not be shown.
+          about a keyspace that is not representable with YCQL. That metadata will not be shown.
 
           The '<keyspacename>' argument may be omitted, in which case the current
           keyspace will be described.
@@ -1447,32 +1447,30 @@ class Shell(cmd.Cmd):
 
         DESCRIBE TABLE [<keyspace>.]<tablename>
 
-          Output CQL commands that could be used to recreate the given table.
+          Output YCQL commands that could be used to recreate the given table.
           In some cases, as above, there may be table metadata which is not
           representable and which will not be shown.
 
         DESCRIBE INDEX <indexname>
 
-          Output the CQL command that could be used to recreate the given index.
+          Output the YCQL command that could be used to recreate the given index.
           In some cases, there may be index metadata which is not representable
           and which will not be shown.
 
         DESCRIBE MATERIALIZED VIEW <viewname>
 
-          Output the CQL command that could be used to recreate the given materialized view.
+          Output the YCQL command that could be used to recreate the given materialized view.
           In some cases, there may be materialized view metadata which is not representable
           and which will not be shown.
 
         DESCRIBE CLUSTER
 
-          Output information about the connected Cassandra cluster, such as the
-          cluster name, and the partitioner and snitch in use. When you are
-          connected to a non-system keyspace, also shows endpoint-range
-          ownership information for the Cassandra ring.
+          Output information about the connected YugabyteDB cluster, such as the
+          cluster name.
 
         DESCRIBE [FULL] SCHEMA
 
-          Output CQL commands that could be used to recreate the entire (non-system) schema.
+          Output YCQL commands that could be used to recreate the entire (non-system) schema.
           Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
           k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
 
@@ -1483,7 +1481,7 @@ class Shell(cmd.Cmd):
 
         DESCRIBE TYPE [<keyspace>.]<type>
 
-          Output the CQL command that could be used to recreate the given user-defined-type.
+          Output the YCQL command that could be used to recreate the given user-defined-type.
 
         DESCRIBE FUNCTIONS
 
@@ -1492,7 +1490,7 @@ class Shell(cmd.Cmd):
 
         DESCRIBE FUNCTION [<keyspace>.]<function>
 
-          Output the CQL command that could be used to recreate the given user-defined-function.
+          Output the YCQL command that could be used to recreate the given user-defined-function.
 
         DESCRIBE AGGREGATES
 
@@ -1501,11 +1499,11 @@ class Shell(cmd.Cmd):
 
         DESCRIBE AGGREGATE [<keyspace>.]<aggregate>
 
-          Output the CQL command that could be used to recreate the given user-defined-aggregate.
+          Output the YCQL command that could be used to recreate the given user-defined-aggregate.
 
         DESCRIBE <objname>
 
-          Output CQL commands that could be used to recreate the entire object schema,
+          Output YCQL commands that could be used to recreate the entire object schema,
           where object can be either a keyspace or a table or an index or a materialized
           view (in this order).
   """
@@ -1718,10 +1716,10 @@ class Shell(cmd.Cmd):
         """
         SOURCE [cqlsh only]
 
-        Executes a file containing CQL statements. Gives the output for each
+        Executes a file containing YCQL statements. Gives the output for each
         statement in turn, if any, or any errors that occur along the way.
 
-        Errors do NOT abort execution of the CQL source file.
+        Errors do NOT abort execution of the YCQL source file.
 
         Usage:
 
