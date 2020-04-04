@@ -201,7 +201,7 @@ precedence over any defaults.""" % globals()
 
 parser = optparse.OptionParser(description=description, epilog=epilog,
                                usage="Usage: %prog [options] [host [port]]",
-                               version='cqlsh ' + version)
+                               version='ycqlsh ' + version)
 parser.add_option("-C", "--color", action='store_true', dest='color',
                   help='Always use color output')
 parser.add_option("--no-color", action='store_false', dest='color',
@@ -421,9 +421,9 @@ class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
     if custom_prompt is not '':
         custom_prompt += "\n"
-    default_prompt = custom_prompt + "cqlsh> "
+    default_prompt = custom_prompt + "ycqlsh> "
     continue_prompt = "   ... "
-    keyspace_prompt = custom_prompt + "cqlsh:%s> "
+    keyspace_prompt = custom_prompt + "ycqlsh:%s> "
     keyspace_continue_prompt = "%s    ... "
     show_line_nums = False
     debug = False
@@ -547,7 +547,7 @@ class Shell(cmd.Cmd):
             self.printerr("\nWARNING: console codepage must be set to cp65001 "
                           "to support {} encoding on Windows platforms.\n"
                           "If you experience encoding problems, change your console"
-                          " codepage with 'chcp 65001' before starting cqlsh.\n".format(self.encoding))
+                          " codepage with 'chcp 65001' before starting ycqlsh.\n".format(self.encoding))
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
@@ -602,7 +602,7 @@ class Shell(cmd.Cmd):
         # system.Versions['cql'] apparently does not reflect changes with
         # set_cql_version.
         vers['cql'] = self.cql_version
-        print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers
+        print "[ycqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers
 
     def show_session(self, sessionid, partial_session=False):
         print_trace_session(self, self.session, sessionid, partial_session)
@@ -1419,7 +1419,7 @@ class Shell(cmd.Cmd):
 
     def do_describe(self, parsed):
         """
-        DESCRIBE [cqlsh only]
+        DESCRIBE [ycqlsh only]
 
         (DESC may be used as a shorthand.)
 
@@ -1570,7 +1570,7 @@ class Shell(cmd.Cmd):
 
     def do_copy(self, parsed):
         r"""
-        COPY [cqlsh only]
+        COPY [ycqlsh only]
 
           COPY x FROM: Imports CSV data into a Cassandra table
           COPY x TO: Exports data from a Cassandra table in CSV format.
@@ -1683,9 +1683,9 @@ class Shell(cmd.Cmd):
 
     def do_show(self, parsed):
         """
-        SHOW [cqlsh only]
+        SHOW [ycqlsh only]
 
-          Displays information about the current cqlsh session. Can be called in
+          Displays information about the current ycqlsh session. Can be called in
           the following ways:
 
         SHOW VERSION
@@ -1696,7 +1696,7 @@ class Shell(cmd.Cmd):
 
         SHOW HOST
 
-          Shows where cqlsh is currently connected.
+          Shows where ycqlsh is currently connected.
 
         SHOW SESSION <sessionid>
 
@@ -1716,7 +1716,7 @@ class Shell(cmd.Cmd):
 
     def do_source(self, parsed):
         """
-        SOURCE [cqlsh only]
+        SOURCE [ycqlsh only]
 
         Executes a file containing CQL statements. Gives the output for each
         statement in turn, if any, or any errors that occur along the way.
@@ -1732,7 +1732,7 @@ class Shell(cmd.Cmd):
         directory. The tilde shorthand notation ('~/mydir') is supported for
         referring to $HOME.
 
-        See also the --file option to cqlsh.
+        See also the --file option to ycqlsh.
         """
         fname = parsed.get_binding('fname')
         fname = os.path.expanduser(self.cql_unprotect_value(fname))
@@ -1764,7 +1764,7 @@ class Shell(cmd.Cmd):
 
     def do_capture(self, parsed):
         """
-        CAPTURE [cqlsh only]
+        CAPTURE [ycqlsh only]
 
         Begins capturing command output and appending it to a specified file.
         Output will not be shown at the console while it is captured.
@@ -1780,10 +1780,10 @@ class Shell(cmd.Cmd):
         directory. The tilde shorthand notation ('~/mydir') is supported for
         referring to $HOME.
 
-        Only query result output is captured. Errors and output from cqlsh-only
-        commands will still be shown in the cqlsh session.
+        Only query result output is captured. Errors and output from ycqlsh-only
+        commands will still be shown in the ycqlsh session.
 
-        To stop capturing output and show it in the cqlsh session again, use
+        To stop capturing output and show it in the ycqlsh session again, use
         CAPTURE OFF.
 
         To inspect the current capture configuration, use CAPTURE with no
@@ -1827,7 +1827,7 @@ class Shell(cmd.Cmd):
 
     def do_tracing(self, parsed):
         """
-        TRACING [cqlsh]
+        TRACING [ycqlsh]
 
           Enables or disables request tracing.
 
@@ -1847,7 +1847,7 @@ class Shell(cmd.Cmd):
 
     def do_expand(self, parsed):
         """
-        EXPAND [cqlsh]
+        EXPAND [ycqlsh]
 
           Enables or disables expanded (vertical) output.
 
@@ -1867,7 +1867,7 @@ class Shell(cmd.Cmd):
 
     def do_consistency(self, parsed):
         """
-        CONSISTENCY [cqlsh only]
+        CONSISTENCY [ycqlsh only]
 
            Overrides default consistency level (default level is ONE).
 
@@ -1895,7 +1895,7 @@ class Shell(cmd.Cmd):
 
     def do_serial(self, parsed):
         """
-        SERIAL CONSISTENCY [cqlsh only]
+        SERIAL CONSISTENCY [ycqlsh only]
 
            Overrides serial consistency level (default level is SERIAL).
 
@@ -1921,7 +1921,7 @@ class Shell(cmd.Cmd):
 
     def do_login(self, parsed):
         """
-        LOGIN [cqlsh only]
+        LOGIN [ycqlsh only]
 
            Changes login information without requiring restart.
 
@@ -1966,9 +1966,9 @@ class Shell(cmd.Cmd):
 
     def do_exit(self, parsed=None):
         """
-        EXIT/QUIT [cqlsh only]
+        EXIT/QUIT [ycqlsh only]
 
-        Exits cqlsh.
+        Exits ycqlsh.
         """
         self.stop = True
         if self.owns_connection:
@@ -1977,7 +1977,7 @@ class Shell(cmd.Cmd):
 
     def do_clear(self, parsed):
         """
-        CLEAR/CLS [cqlsh only]
+        CLEAR/CLS [ycqlsh only]
 
         Clears the console.
         """
@@ -2000,9 +2000,9 @@ class Shell(cmd.Cmd):
 
     def do_help(self, parsed):
         """
-        HELP [cqlsh only]
+        HELP [ycqlsh only]
 
-        Gives information about cqlsh commands. To see available topics,
+        Gives information about ycqlsh commands. To see available topics,
         enter "HELP" without any arguments. To see help on a topic,
         use "HELP <topic>".
         """
@@ -2043,13 +2043,13 @@ class Shell(cmd.Cmd):
         Unicode code points in your data will be output intact, if the
         encoding for your locale is capable of decoding them. If you prefer
         that non-ascii characters be shown with Python-style "\\uABCD"
-        escape sequences, invoke cqlsh with an ASCII locale (for example,
+        escape sequences, invoke ycqlsh with an ASCII locale (for example,
         by setting the $LANG environment variable to "C").
         """
 
     def do_paging(self, parsed):
         """
-        PAGING [cqlsh]
+        PAGING [ycqlsh]
 
           Enables or disables query paging.
 
