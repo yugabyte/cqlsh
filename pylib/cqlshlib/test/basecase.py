@@ -32,7 +32,7 @@ except ImportError:
 
 rundir = dirname(__file__)
 cqlshdir = normpath(join(rundir, '..', '..', '..', 'bin'))
-path_to_cqlsh = normpath(join(cqlshdir, 'cqlsh.py'))
+path_to_cqlsh = normpath(join(cqlshdir, 'ycqlsh.py'))
 
 sys.path.append(cqlshdir)
 
