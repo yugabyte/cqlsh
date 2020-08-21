@@ -19,21 +19,21 @@
 
 """:"
 # bash code here; finds a suitable python interpreter and execs this file.
+# this implementation of cqlsh is compatible with both Python 3 and Python 2.7.
 # prefer unqualified "python" if suitable:
-python -c 'import sys; sys.exit(not (0x020700b0 < sys.hexversion < 0x03000000))' 2>/dev/null \
+python -c 'import sys; sys.exit(not (0x020700b0 < sys.hexversion))' 2>/dev/null \
     && exec python "$0" "$@"
-for pyver in 2.7; do
+for pyver in 3 2.7; do
     which python$pyver > /dev/null 2>&1 && exec python$pyver "$0" "$@"
 done
 echo "No appropriate python interpreter found." >&2
 exit 1
 ":"""
 
-from __future__ import with_statement
+from __future__ import division, unicode_literals
 
 import cmd
 import codecs
-import ConfigParser
 import csv
 import getpass
 import optparse
@@ -43,13 +43,12 @@ import sys
 import traceback
 import warnings
 import webbrowser
-from StringIO import StringIO
 from contextlib import contextmanager
 from glob import glob
 from uuid import UUID
 
-if sys.version_info[0] != 2 or sys.version_info[1] != 7:
-    sys.exit("\nCQL Shell supports only Python 2.7\n")
+if sys.version_info.major != 3 and (sys.version_info.major == 2 and sys.version_info.minor != 7):
+    sys.exit("\nCQL Shell supports only Python 3 or Python 2.7\n")
 
 # see CASSANDRA-10428
 if platform.python_implementation().startswith('Jython'):
@@ -97,7 +96,8 @@ else:
 # >>> webbrowser._tryorder
 # >>> webbrowser._browser
 #
-if len(webbrowser._tryorder) == 0:
+# webbrowser._tryorder is None in python3.7+
+if webbrowser._tryorder is None or len(webbrowser._tryorder) == 0:
     CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
 elif webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
     # only on Linux (some OS with xdg-open)
@@ -139,10 +139,17 @@ for lib in third_parties:
     if lib_zip:
         sys.path.insert(0, lib_zip)
 
+# We cannot import six until we add its location to sys.path so the Python
+# interpreter can find it. Do not move this to the top.
+import six
+
+from six.moves import configparser, input
+from six import StringIO, ensure_text, ensure_str
+
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
     import cassandra
-except ImportError, e:
+except ImportError as e:
     sys.exit("\nPython Cassandra driver not installed, or not on PYTHONPATH.\n"
              'You might try "pip install cassandra-driver".\n\n'
              'Python: %s\n'
@@ -240,7 +247,7 @@ HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
 if hasattr(options, 'cqlshrc'):
     CONFIG_FILE = options.cqlshrc
     if not os.path.exists(CONFIG_FILE):
-        print '\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, HISTORY_DIR)
+        print('\nWarning: Specified cqlshrc location `%s` does not exist.  Using `%s` instead.\n' % (CONFIG_FILE, HISTORY_DIR))
         CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
 else:
     CONFIG_FILE = os.path.join(HISTORY_DIR, 'cqlshrc')
@@ -250,16 +257,16 @@ if not os.path.exists(HISTORY_DIR):
     try:
         os.mkdir(HISTORY_DIR)
     except OSError:
-        print '\nWarning: Cannot create directory at `%s`. Command history will not be saved.\n' % HISTORY_DIR
+        print('\nWarning: Cannot create directory at `%s`. Command history will not be saved.\n' % HISTORY_DIR)
 
 OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 if os.path.exists(OLD_CONFIG_FILE):
     if os.path.exists(CONFIG_FILE):
-        print '\nWarning: cqlshrc config files were found at both the old location (%s) and \
-                the new location (%s), the old config file will not be migrated to the new \
-                location, and the new location will be used for now.  You should manually \
-                consolidate the config files at the new location and remove the old file.' \
-                % (OLD_CONFIG_FILE, CONFIG_FILE)
+        print('\nWarning: cqlshrc config files were found at both the old location ({0})'
+              + ' and the new location ({1}), the old config file will not be migrated to the new'
+              + ' location, and the new location will be used for now.  You should manually'
+              + ' consolidate the config files at the new location and remove the old file.'
+              .format(OLD_CONFIG_FILE, CONFIG_FILE))
     else:
         os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
 OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
@@ -348,7 +355,7 @@ def full_cql_version(ver):
     while ver.count('.') < 2:
         ver += '.0'
     ver_parts = ver.split('-', 1) + ['']
-    vertuple = tuple(map(int, ver_parts[0].split('.')) + [ver_parts[1]])
+    vertuple = tuple(list(map(int, ver_parts[0].split('.'))) + [ver_parts[1]])
     return ver, vertuple
 
 
@@ -399,27 +406,9 @@ def insert_driver_hooks():
     cassandra.cqltypes.CassandraType.support_empty_values = True
 
 
-class FrozenType(cassandra.cqltypes._ParameterizedType):
-    """
-    Needed until the bundled python driver adds FrozenType.
-    """
-    typename = "frozen"
-    num_subtypes = 1
-
-    @classmethod
-    def deserialize_safe(cls, byts, protocol_version):
-        subtype, = cls.subtypes
-        return subtype.from_binary(byts)
-
-    @classmethod
-    def serialize_safe(cls, val, protocol_version):
-        subtype, = cls.subtypes
-        return subtype.to_binary(val, protocol_version)
-
-
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
-    if custom_prompt is not '':
+    if custom_prompt != '':
         custom_prompt += "\n"
     default_prompt = custom_prompt + "ycqlsh> "
     continue_prompt = "   ... "
@@ -524,7 +513,7 @@ class Shell(cmd.Cmd):
         if tty:
             self.reset_prompt()
             self.report_connection()
-            print 'Use HELP for help.'
+            print('Use HELP for help.')
         else:
             self.show_line_nums = True
         self.stdin = stdin
@@ -569,7 +558,7 @@ class Shell(cmd.Cmd):
             return format_value(val, cqltype=cqltype, encoding=self.output_codec.name,
                                 addcolor=self.color, date_time_format=dtformats,
                                 float_precision=precision, **kwargs)
-        except Exception, e:
+        except Exception as e:
             err = FormatError(val, e)
             self.decoding_errors.append(err)
             return format_value(err, cqltype=cqltype, encoding=self.output_codec.name, addcolor=self.color)
@@ -591,10 +580,10 @@ class Shell(cmd.Cmd):
         self.show_version()
 
     def show_host(self):
-        print "Connected to %s at %s:%d." % \
+        print("Connected to %s at %s:%d." % \
             (self.applycolor(self.get_cluster_name(), BLUE),
               self.hostname,
-              self.port)
+              self.port))
 
     def show_version(self):
         vers = self.connection_versions.copy()
@@ -602,7 +591,7 @@ class Shell(cmd.Cmd):
         # system.Versions['cql'] apparently does not reflect changes with
         # set_cql_version.
         vers['cql'] = self.cql_version
-        print "[ycqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers
+        print("[ycqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers)
 
     def show_session(self, sessionid, partial_session=False):
         print_trace_session(self, self.session, sessionid, partial_session)
@@ -617,37 +606,37 @@ class Shell(cmd.Cmd):
         self.connection_versions = vers
 
     def get_keyspace_names(self):
-        return map(str, self.conn.metadata.keyspaces.keys())
+        return list(map(str, list(self.conn.metadata.keyspaces.keys())))
 
     def get_columnfamily_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return map(str, self.get_keyspace_meta(ksname).tables.keys())
+        return list(map(str, list(self.get_keyspace_meta(ksname).tables.keys())))
 
     def get_materialized_view_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return map(str, self.get_keyspace_meta(ksname).views.keys())
+        return list(map(str, list(self.get_keyspace_meta(ksname).views.keys())))
 
     def get_index_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return map(str, self.get_keyspace_meta(ksname).indexes.keys())
+        return list(map(str, list(self.get_keyspace_meta(ksname).indexes.keys())))
 
     def get_column_names(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
         layout = self.get_table_meta(ksname, cfname)
-        return [unicode(col) for col in layout.columns]
+        return [str(col) for col in layout.columns]
 
     def get_usertype_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return self.get_keyspace_meta(ksname).user_types.keys()
+        return list(self.get_keyspace_meta(ksname).user_types.keys())
 
     def get_usertype_layout(self, ksname, typename):
         if ksname is None:
@@ -660,19 +649,19 @@ class Shell(cmd.Cmd):
         except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
 
-        return zip(user_type.field_names, user_type.field_types)
+        return list(zip(user_type.field_names, user_type.field_types))
 
     def get_userfunction_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return map(lambda f: f.name, self.get_keyspace_meta(ksname).functions.values())
+        return [f.name for f in list(self.get_keyspace_meta(ksname).functions.values())]
 
     def get_useraggregate_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
 
-        return map(lambda f: f.name, self.get_keyspace_meta(ksname).aggregates.values())
+        return [f.name for f in list(self.get_keyspace_meta(ksname).aggregates.values())]
 
     def get_cluster_name(self):
         return self.conn.metadata.cluster_name
@@ -686,7 +675,7 @@ class Shell(cmd.Cmd):
         return self.conn.metadata.keyspaces[ksname]
 
     def get_keyspaces(self):
-        return self.conn.metadata.keyspaces.values()
+        return list(self.conn.metadata.keyspaces.values())
 
     def get_ring(self, ks):
         self.conn.metadata.token_map.rebuild_keyspace(ks, build_if_absent=True)
@@ -779,12 +768,13 @@ class Shell(cmd.Cmd):
             ksname = self.current_keyspace
 
         return [trigger.name
-                for table in self.get_keyspace_meta(ksname).tables.values()
-                for trigger in table.triggers.values()]
+                for table in list(self.get_keyspace_meta(ksname).tables.values())
+                for trigger in list(table.triggers.values())]
 
     def reset_statement(self):
         self.reset_prompt()
         self.statement.truncate(0)
+        self.statement.seek(0)
         self.empty_lines = 0
 
     def reset_prompt(self):
@@ -813,7 +803,7 @@ class Shell(cmd.Cmd):
                 import readline
             except ImportError:
                 if is_win:
-                    print "WARNING: pyreadline dependency missing.  Install to enable tab completion."
+                    print("WARNING: pyreadline dependency missing.  Install to enable tab completion.")
                 pass
             else:
                 old_completer = readline.get_completer()
@@ -832,15 +822,10 @@ class Shell(cmd.Cmd):
 
     def get_input_line(self, prompt=''):
         if self.tty:
-            try:
-                self.lastcmd = raw_input(prompt).decode(self.encoding)
-            except UnicodeDecodeError:
-                self.lastcmd = ''
-                traceback.print_exc()
-                self.check_windows_encoding()
-            line = self.lastcmd + '\n'
+            self.lastcmd = input(prompt)
+            line = ensure_text(self.lastcmd) + '\n'
         else:
-            self.lastcmd = self.stdin.readline()
+            self.lastcmd = ensure_text(self.stdin.readline())
             line = self.lastcmd
             if not len(line):
                 raise EOFError
@@ -877,21 +862,21 @@ class Shell(cmd.Cmd):
                         self.reset_statement()
                 except EOFError:
                     self.handle_eof()
-                except CQL_ERRORS, cqlerr:
-                    self.printerr(cqlerr.message.decode(encoding='utf-8'))
+                except CQL_ERRORS as cqlerr:
+                    self.printerr(cqlerr.message)
                 except KeyboardInterrupt:
                     self.reset_statement()
-                    print
+                    print('')
 
     def onecmd(self, statementtext):
         """
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
         """
-
+        statementtext = ensure_text(statementtext)
         try:
             statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
-        except pylexotron.LexingError, e:
+        except pylexotron.LexingError as e:
             if self.show_line_nums:
                 self.printerr('Invalid syntax at char %d' % (e.charnum,))
             else:
@@ -912,7 +897,7 @@ class Shell(cmd.Cmd):
         for st in statements:
             try:
                 self.handle_statement(st, statementtext)
-            except Exception, e:
+            except Exception as e:
                 if self.debug:
                     traceback.print_exc()
                 else:
@@ -921,7 +906,7 @@ class Shell(cmd.Cmd):
 
     def handle_eof(self):
         if self.tty:
-            print
+            print('')
         statement = self.statement.getvalue()
         if statement.strip():
             if not self.onecmd(statement):
@@ -936,7 +921,7 @@ class Shell(cmd.Cmd):
             new_hist = srcstr.replace("\n", " ").rstrip()
 
             if nl_count > 1 and self.last_hist != new_hist:
-                readline.add_history(new_hist.encode(self.encoding))
+                readline.add_history(new_hist)
 
             self.last_hist = new_hist
         cmdword = tokens[0][1]
@@ -984,6 +969,8 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement):
+        statement = ensure_text(statement)
+
         stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.page_size if self.use_paging else None)
         success, future = self.perform_simple_statement(stmt)
 
@@ -1000,7 +987,7 @@ class Shell(cmd.Cmd):
                     self.writeresult(msg, color=RED)
                     for trace_id in future.get_query_trace_ids():
                         self.show_session(trace_id, partial_session=True)
-                except Exception, err:
+                except Exception as err:
                     self.printerr("Unable to fetch query trace: %s" % (str(err),))
 
         return success
@@ -1037,8 +1024,9 @@ class Shell(cmd.Cmd):
         result = None
         try:
             result = future.result()
-        except CQL_ERRORS, err:
-            self.printerr(unicode(err.__class__.__name__) + u": " + err.message.decode(encoding='utf-8'))
+        except CQL_ERRORS as err:
+            err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
+            self.printerr(str(err.__class__.__name__) + ": " + err_msg)
         except Exception:
             import traceback
             self.printerr(traceback.format_exc())
@@ -1079,7 +1067,7 @@ class Shell(cmd.Cmd):
                     num_rows += len(result.current_rows)
                     self.print_static_result(result, table_meta)
                 if result.has_more_pages:
-                    raw_input("---MORE---")
+                    input("---MORE---")
                     result.fetch_next_page()
                 else:
                     break
@@ -1099,7 +1087,7 @@ class Shell(cmd.Cmd):
         if not result.column_names and not table_meta:
             return
 
-        column_names = result.column_names or table_meta.columns.keys()
+        column_names = result.column_names or list(table_meta.columns.keys())
         formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
         if not result.current_rows:
             # print header only
@@ -1112,7 +1100,8 @@ class Shell(cmd.Cmd):
             ks_meta = self.conn.metadata.keyspaces.get(ks_name, None)
             cql_types = [CqlType(cql_typename(t), ks_meta) for t in result.column_types]
 
-        formatted_values = [map(self.myformat_value, row.values(), cql_types) for row in result.current_rows]
+        formatted_values = [list(map(self.myformat_value, [row[c] for c in column_names], cql_types)) for row in result.current_rows]
+
 
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
@@ -1261,161 +1250,161 @@ class Shell(cmd.Cmd):
         out.write("\n")
 
     def describe_keyspaces(self):
-        print
+        print('')
         cmd.Cmd.columnize(self, protect_names(self.get_keyspace_names()))
-        print
+        print('')
 
     def describe_keyspace(self, ksname):
-        print
+        print('')
         self.print_recreate_keyspace(self.get_keyspace_meta(ksname), sys.stdout)
-        print
+        print('')
 
     def describe_columnfamily(self, ksname, cfname):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         self.print_recreate_columnfamily(ksname, cfname, sys.stdout)
-        print
+        print('')
 
     def describe_index(self, ksname, idxname):
-        print
+        print('')
         self.print_recreate_index(ksname, idxname, sys.stdout)
-        print
+        print('')
 
     def describe_materialized_view(self, ksname, viewname):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         self.print_recreate_materialized_view(ksname, viewname, sys.stdout)
-        print
+        print('')
 
     def describe_object(self, ks, name):
-        print
+        print('')
         self.print_recreate_object(ks, name, sys.stdout)
-        print
+        print('')
 
     def describe_columnfamilies(self, ksname):
-        print
+        print('')
         if ksname is None:
             for k in self.get_keyspaces():
                 name = protect_name(k.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
                 cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(k.name)))
-                print
+                print('')
         else:
             cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(ksname)))
-            print
+            print('')
 
     def describe_functions(self, ksname):
-        print
+        print('')
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
-                self._columnize_unicode(ksmeta.functions.keys())
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
+                self._columnize_unicode(list(ksmeta.functions.keys()))
         else:
             ksmeta = self.get_keyspace_meta(ksname)
-            self._columnize_unicode(ksmeta.functions.keys())
+            self._columnize_unicode(list(ksmeta.functions.keys()))
 
     def describe_function(self, ksname, functionname):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         ksmeta = self.get_keyspace_meta(ksname)
-        functions = filter(lambda f: f.name == functionname, ksmeta.functions.values())
+        functions = [f for f in list(ksmeta.functions.values()) if f.name == functionname]
         if len(functions) == 0:
             raise FunctionNotFound("User defined function %r not found" % functionname)
-        print "\n\n".join(func.export_as_string() for func in functions)
-        print
+        print("\n\n".join(func.export_as_string() for func in functions))
+        print('')
 
     def describe_aggregates(self, ksname):
-        print
+        print('')
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
-                self._columnize_unicode(ksmeta.aggregates.keys())
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
+                self._columnize_unicode(list(ksmeta.aggregates.keys()))
         else:
             ksmeta = self.get_keyspace_meta(ksname)
-            self._columnize_unicode(ksmeta.aggregates.keys())
+            self._columnize_unicode(list(ksmeta.aggregates.keys()))
 
     def describe_aggregate(self, ksname, aggregatename):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         ksmeta = self.get_keyspace_meta(ksname)
-        aggregates = filter(lambda f: f.name == aggregatename, ksmeta.aggregates.values())
+        aggregates = [f for f in list(ksmeta.aggregates.values()) if f.name == aggregatename]
         if len(aggregates) == 0:
             raise FunctionNotFound("User defined aggregate %r not found" % aggregatename)
-        print "\n\n".join(aggr.export_as_string() for aggr in aggregates)
-        print
+        print("\n\n".join(aggr.export_as_string() for aggr in aggregates))
+        print('')
 
     def describe_usertypes(self, ksname):
-        print
+        print('')
         if ksname is None:
             for ksmeta in self.get_keyspaces():
                 name = protect_name(ksmeta.name)
-                print 'Keyspace %s' % (name,)
-                print '---------%s' % ('-' * len(name))
-                self._columnize_unicode(ksmeta.user_types.keys(), quote=True)
+                print('Keyspace %s' % (name,))
+                print('---------%s' % ('-' * len(name)))
+                self._columnize_unicode(list(ksmeta.user_types.keys()), quote=True)
         else:
             ksmeta = self.get_keyspace_meta(ksname)
-            self._columnize_unicode(ksmeta.user_types.keys(), quote=True)
+            self._columnize_unicode(list(ksmeta.user_types.keys()), quote=True)
 
     def describe_usertype(self, ksname, typename):
         if ksname is None:
             ksname = self.current_keyspace
         if ksname is None:
             raise NoKeyspaceError("No keyspace specified and no current keyspace")
-        print
+        print('')
         ksmeta = self.get_keyspace_meta(ksname)
         try:
             usertype = ksmeta.user_types[typename]
         except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
-        print usertype.export_as_string()
+        print(usertype.export_as_string())
 
     def _columnize_unicode(self, name_list, quote=False):
         """
         Used when columnizing identifiers that may contain unicode
         """
-        names = [n.encode('utf-8') for n in name_list]
+        names = [n for n in name_list]
         if quote:
             names = protect_names(names)
         cmd.Cmd.columnize(self, names)
-        print
+        print('')
 
     def describe_cluster(self):
-        print '\nCluster: %s' % self.get_cluster_name()
+        print('\nCluster: %s' % self.get_cluster_name())
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
-        print 'Partitioner: %s\n' % p
+        print('Partitioner: %s\n' % p)
         # TODO: snitch?
         # snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
         # print 'Snitch: %s\n' % snitch
         if self.current_keyspace is not None and self.current_keyspace != 'system':
-            print "Range ownership:"
+            print("Range ownership:")
             ring = self.get_ring(self.current_keyspace)
             for entry in ring.items():
-                print ' %39s  [%s]' % (str(entry[0].value), ', '.join([host.address for host in entry[1]]))
-            print
+                print(' %39s  [%s]' % (str(entry[0].value), ', '.join([host.address for host in entry[1]])))
+            print('')
 
     def describe_schema(self, include_system=False):
-        print
+        print('')
         for k in self.get_keyspaces():
             if include_system or k.name not in cql3handling.SYSTEM_KEYSPACES:
                 self.print_recreate_keyspace(k, sys.stdout)
-                print
+                print('')
 
     def do_describe(self, parsed):
         """
@@ -1658,7 +1647,7 @@ class Shell(cmd.Cmd):
         table = self.cql_unprotect_name(parsed.get_binding('cfname'))
         columns = parsed.get_binding('colnames', None)
         if columns is not None:
-            columns = map(self.cql_unprotect_name, columns)
+            columns = list(map(self.cql_unprotect_name, columns))
         else:
             # default to all known columns
             columns = self.get_column_names(ks, table)
@@ -1667,9 +1656,9 @@ class Shell(cmd.Cmd):
         if fname is not None:
             fname = self.cql_unprotect_value(fname)
 
-        copyoptnames = map(str.lower, parsed.get_binding('optnames', ()))
-        copyoptvals = map(self.cql_unprotect_value, parsed.get_binding('optvals', ()))
-        opts = dict(zip(copyoptnames, copyoptvals))
+        copyoptnames = list(map(six.text_type.lower, parsed.get_binding('optnames', ())))
+        copyoptvals = list(map(self.cql_unprotect_value, parsed.get_binding('optvals', ())))
+        opts = dict(list(zip(copyoptnames, copyoptvals)))
 
         direction = parsed.get_binding('dir').upper()
         if direction == 'FROM':
@@ -1740,7 +1729,7 @@ class Shell(cmd.Cmd):
             encoding, bom_size = get_file_encoding_bomsize(fname)
             f = codecs.open(fname, 'r', encoding)
             f.seek(bom_size)
-        except IOError, e:
+        except IOError as e:
             self.printerr('Could not open %r: %s' % (fname, e))
             return
         username = self.auth_provider.username if self.auth_provider else None
@@ -1792,9 +1781,9 @@ class Shell(cmd.Cmd):
         fname = parsed.get_binding('fname')
         if fname is None:
             if self.shunted_query_out is not None:
-                print "Currently capturing query output to %r." % (self.query_out.name,)
+                print("Currently capturing query output to %r." % (self.query_out.name,))
             else:
-                print "Currently not capturing query output."
+                print("Currently not capturing query output.")
             return
 
         if fname.upper() == 'OFF':
@@ -1816,14 +1805,14 @@ class Shell(cmd.Cmd):
         fname = os.path.expanduser(self.cql_unprotect_value(fname))
         try:
             f = open(fname, 'a')
-        except IOError, e:
+        except IOError as e:
             self.printerr('Could not open %r for append: %s' % (fname, e))
             return
         self.shunted_query_out = self.query_out
         self.shunted_color = self.color
         self.query_out = f
         self.color = False
-        print 'Now capturing query output to %r.' % (fname,)
+        print('Now capturing query output to %r.' % (fname,))
 
     def do_tracing(self, parsed):
         """
@@ -1887,11 +1876,11 @@ class Shell(cmd.Cmd):
         """
         level = parsed.get_binding('level')
         if level is None:
-            print 'Current consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.consistency_level])
+            print('Current consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.consistency_level]))
             return
 
         self.consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
-        print 'Consistency level set to %s.' % (level.upper(),)
+        print('Consistency level set to %s.' % (level.upper(),))
 
     def do_serial(self, parsed):
         """
@@ -1913,11 +1902,11 @@ class Shell(cmd.Cmd):
         """
         level = parsed.get_binding('level')
         if level is None:
-            print 'Current serial consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.serial_consistency_level])
+            print('Current serial consistency level is %s.' % (cassandra.ConsistencyLevel.value_to_name[self.serial_consistency_level]))
             return
 
         self.serial_consistency_level = cassandra.ConsistencyLevel.name_to_value[level.upper()]
-        print 'Serial consistency level set to %s.' % (level.upper(),)
+        print('Serial consistency level set to %s.' % (level.upper(),))
 
     def do_login(self, parsed):
         """
@@ -2070,7 +2059,7 @@ class Shell(cmd.Cmd):
         if self.use_paging and requested_page_size is not None:
             self.page_size = requested_page_size
         if self.use_paging:
-            print("Page size: {}".format(self.page_size))
+            print(("Page size: {}".format(self.page_size)))
         else:
             self.page_size = self.default_page_size
 
@@ -2084,13 +2073,11 @@ class Shell(cmd.Cmd):
             out = self.query_out
 
         # convert Exceptions, etc to text
-        if not isinstance(text, (unicode, str)):
-            text = unicode(text)
-
-        if isinstance(text, unicode):
-            text = text.encode(self.encoding)
+        if not isinstance(text, six.text_type):
+            text = "{}".format(text)
 
         to_write = self.applycolor(text, color) + ('\n' if newline else '')
+        to_write = ensure_str(to_write)
         out.write(to_write)
 
     def flush_output(self):
@@ -2117,11 +2104,11 @@ class SwitchCommand(object):
         switch = parsed.get_binding('switch')
         if switch is None:
             if state:
-                print "%s is currently enabled. Use %s OFF to disable" \
-                      % (self.description, self.command)
+                print("%s is currently enabled. Use %s OFF to disable" \
+                      % (self.description, self.command))
             else:
-                print "%s is currently disabled. Use %s ON to enable." \
-                      % (self.description, self.command)
+                print("%s is currently disabled. Use %s ON to enable." \
+                      % (self.description, self.command))
             return state
 
         if switch.upper() == 'ON':
@@ -2129,14 +2116,14 @@ class SwitchCommand(object):
                 printerr('%s is already enabled. Use %s OFF to disable.'
                          % (self.description, self.command))
                 return state
-            print 'Now %s is enabled' % (self.description,)
+            print('Now %s is enabled' % (self.description,))
             return True
 
         if switch.upper() == 'OFF':
             if not state:
                 printerr('%s is not enabled.' % (self.description,))
                 return state
-            print 'Disabled %s.' % (self.description,)
+            print('Disabled %s.' % (self.description,))
             return False
 
 
@@ -2168,7 +2155,7 @@ class SwitchCommandWithValue(SwitchCommand):
 def option_with_default(cparser_getter, section, option, default=None):
     try:
         return cparser_getter(section, option)
-    except ConfigParser.Error:
+    except configparser.Error:
         return default
 
 
@@ -2179,7 +2166,7 @@ def raw_option_with_default(configs, section, option, default=None):
     """
     try:
         return configs.get(section, option, raw=True)
-    except ConfigParser.Error:
+    except configparser.Error:
         return default
 
 
@@ -2202,10 +2189,10 @@ def should_use_color():
 
 
 def read_options(cmdlineargs, environment):
-    configs = ConfigParser.SafeConfigParser()
+    configs = configparser.SafeConfigParser() if sys.version_info < (3, 2) else configparser.ConfigParser()
     configs.read(CONFIG_FILE)
 
-    rawconfigs = ConfigParser.RawConfigParser()
+    rawconfigs = configparser.RawConfigParser()
     rawconfigs.read(CONFIG_FILE)
 
     optvalues = optparse.Values()
@@ -2341,7 +2328,7 @@ def main(options, hostname, port):
             encoding, bom_size = get_file_encoding_bomsize(options.file)
             stdin = codecs.open(options.file, 'r', encoding)
             stdin.seek(bom_size)
-        except IOError, e:
+        except IOError as e:
             sys.exit("Can't open %r: %s" % (options.file, e))
 
     if options.debug:
@@ -2358,12 +2345,12 @@ def main(options, hostname, port):
             if options.timezone:
                 try:
                     timezone = pytz.timezone(options.timezone)
-                except:
+                except Exception:
                     sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
             if 'TZ' in os.environ:
                 try:
                     timezone = pytz.timezone(os.environ['TZ'])
-                except:
+                except Exception:
                     sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
         except ImportError:
             sys.stderr.write("Warning: Timezone defined and 'pytz' module for timezone conversion not installed. Timestamps will be displayed in UTC timezone.\n\n")
@@ -2406,9 +2393,9 @@ def main(options, hostname, port):
                       encoding=options.encoding)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
-    except CQL_ERRORS, e:
+    except CQL_ERRORS as e:
         sys.exit('Connection error: %s' % (e,))
-    except VersionNotSupported, e:
+    except VersionNotSupported as e:
         sys.exit('Unsupported CQL version: %s' % (e,))
     if options.debug:
         shell.debug = True
