@@ -16,6 +16,8 @@
 
 # NOTE: this testing tool is *nix specific
 
+from __future__ import unicode_literals
+
 import os
 import sys
 import re
@@ -32,7 +34,7 @@ def is_win():
     return sys.platform in ("cygwin", "win32")
 
 if is_win():
-    from winpty import WinPty
+    from .winpty import WinPty
     DEFAULT_PREFIX = ''
 else:
     import pty
@@ -40,6 +42,25 @@ else:
 
 DEFAULT_CQLSH_PROMPT = DEFAULT_PREFIX + '(\S+@)?cqlsh(:\S+)?> '
 DEFAULT_CQLSH_TERM = 'xterm'
+
+
+def get_smm_sequence(term='xterm'):
+    """
+    Return the set meta mode (smm) sequence, if any.
+    On more recent Linux systems, xterm emits the smm sequence
+    before each prompt.
+    """
+    result = ''
+    if not is_win():
+        tput_proc = subprocess.Popen(['tput', '-T{}'.format(term), 'smm'], stdout=subprocess.PIPE)
+        tput_stdout = tput_proc.communicate()[0]
+        if (tput_stdout and (tput_stdout != b'')):
+            result = tput_stdout
+            if isinstance(result, bytes):
+                result = result.decode("utf-8")
+    return result
+
+DEFAULT_SMM_SEQUENCE = get_smm_sequence()
 
 cqlshlog = basecase.cqlshlog
 
@@ -103,7 +124,7 @@ def timing_out_alarm(seconds):
 if is_win():
     try:
         import eventlet
-    except ImportError, e:
+    except ImportError as e:
         sys.exit("evenlet library required to run cqlshlib tests on Windows")
 
     def timing_out(seconds):
@@ -171,22 +192,33 @@ class ProcRunner:
         return self.proc.wait()
 
     def send_tty(self, data):
+        if not isinstance(data, bytes):
+            data = data.encode("utf-8")
         os.write(self.childpty, data)
 
     def send_pipe(self, data):
         self.proc.stdin.write(data)
 
     def read_tty(self, blksize, timeout=None):
-        return os.read(self.childpty, blksize)
+        buf = os.read(self.childpty, blksize)
+        if isinstance(buf, bytes):
+            buf = buf.decode("utf-8")
+        return buf
 
     def read_pipe(self, blksize, timeout=None):
-        return self.proc.stdout.read(blksize)
+        buf = self.proc.stdout.read(blksize)
+        if isinstance(buf, bytes):
+            buf = buf.decode("utf-8")
+        return buf
 
     def read_winpty(self, blksize, timeout=None):
-        return self.winpty.read(blksize, timeout)
+        buf = self.winpty.read(blksize, timeout)
+        if isinstance(buf, bytes):
+            buf = buf.decode("utf-8")
+        return buf
 
     def read_until(self, until, blksize=4096, timeout=None,
-                   flags=0, ptty_timeout=None):
+                   flags=0, ptty_timeout=None, replace=[]):
         if not isinstance(until, re._pattern_type):
             until = re.compile(until, flags)
 
@@ -196,6 +228,9 @@ class ProcRunner:
         with timing_out(timeout):
             while True:
                 val = self.read(blksize, ptty_timeout)
+                for replace_target in replace:
+                    if (replace_target != ''):
+                        val = val.replace(replace_target, '')
                 cqlshlog.debug("read %r from subproc" % (val,))
                 if val == '':
                     raise EOFError("'until' pattern %r not found" % (until.pattern,))
@@ -256,7 +291,7 @@ class CqlshRunner(ProcRunner):
         if cqlver is not None:
             args += ('--cqlversion', str(cqlver))
         if keyspace is not None:
-            args += ('--keyspace', keyspace)
+            args += ('--keyspace', keyspace.lower())
         if tty and is_win():
             args += ('--tty',)
             args += ('--encoding', 'utf-8')
@@ -270,8 +305,8 @@ class CqlshRunner(ProcRunner):
         else:
             self.output_header = self.read_to_next_prompt()
 
-    def read_to_next_prompt(self):
-        return self.read_until(self.prompt, timeout=10.0, ptty_timeout=3)
+    def read_to_next_prompt(self, timeout=10.0):
+        return self.read_until(self.prompt, timeout=timeout, ptty_timeout=3, replace=[DEFAULT_SMM_SEQUENCE,])
 
     def read_up_to_timeout(self, timeout, blksize=4096):
         output = ProcRunner.read_up_to_timeout(self, timeout, blksize=blksize)
@@ -309,4 +344,6 @@ def call_cqlsh(**kwargs):
     c = CqlshRunner(**kwargs)
     output, _ = c.proc.communicate(proginput)
     result = c.close()
+    if isinstance(output, bytes):
+        output = output.decode("utf-8")
     return output, result
