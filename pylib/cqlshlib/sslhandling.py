@@ -57,12 +57,12 @@ def ssl_settings(host, config_file, env=os.environ):
     if ssl_version_str is None:
         ssl_version_str = get_option('ssl', 'version')
     if ssl_version_str is None:
-        ssl_version_str = "TLSv1"
+        ssl_version_str = "TLSv1_2"
 
     ssl_version = getattr(ssl, "PROTOCOL_%s" % ssl_version_str, None)
     if ssl_version is None:
         sys.exit("%s is not a valid SSL protocol, please use one of SSLv23, "
-                 "TLSv1, TLSv1.1, or TLSv1.2" % (ssl_version_str,))
+                 "TLSv1, TLSv1_1, or TLSv1_2" % (ssl_version_str,))
 
     ssl_certfile = env.get('SSL_CERTFILE')
     if ssl_certfile is None:
