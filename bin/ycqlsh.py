@@ -1604,7 +1604,7 @@ class Shell(cmd.Cmd):
         Available COPY FROM options and defaults:
 
           CHUNKSIZE=5000          - the size of chunks passed to worker processes
-          INGESTRATE=100000       - an approximate ingest rate in rows per second
+          INGESTRATE=1000         - an approximate ingest rate in rows per second
           MINBATCHSIZE=10         - the minimum size of an import batch
           MAXBATCHSIZE=20         - the maximum size of an import batch
           MAXROWS=-1              - the maximum number of rows, -1 means no maximum

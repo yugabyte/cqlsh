@@ -346,7 +346,7 @@ class CopyTask(object):
         copy_options['floatprecision'] = int(opts.pop('floatprecision', '5'))
         copy_options['doubleprecision'] = int(opts.pop('doubleprecision', '12'))
         copy_options['chunksize'] = int(opts.pop('chunksize', 5000))
-        copy_options['ingestrate'] = int(opts.pop('ingestrate', 100000))
+        copy_options['ingestrate'] = int(opts.pop('ingestrate', 1000))
         copy_options['maxbatchsize'] = int(opts.pop('maxbatchsize', 20))
         copy_options['minbatchsize'] = int(opts.pop('minbatchsize', 10))
         copy_options['reportfrequency'] = float(opts.pop('reportfrequency', 0.25))
