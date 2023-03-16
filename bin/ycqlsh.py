@@ -193,6 +193,8 @@ DEFAULT_FLOAT_PRECISION = 5
 DEFAULT_DOUBLE_PRECISION = 5
 DEFAULT_MAX_TRACE_WAIT = 10
 
+DEFAULT_DISALLOW_PYTHON_DEBUG = False
+
 if readline is not None and readline.__doc__ is not None and 'libedit' in readline.__doc__:
     DEFAULT_COMPLETEKEY = '\t'
 else:
@@ -239,6 +241,8 @@ parser.add_option("-t", "--tty", action='store_true', dest='tty',
                   help='Force tty mode (command prompt).')
 parser.add_option("-r", "--refresh_on_describe", action='store_true',
                   help='Force refreshing of the schema metadata on DESCRIBE command.')
+parser.add_option("--disallow_python_debug", default=DEFAULT_DISALLOW_PYTHON_DEBUG, action='store_true', 
+                  help='Disallow the DEBUG command to start a Python debugger session')
 
 optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
@@ -464,7 +468,8 @@ class Shell(cmd.Cmd):
                  request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  protocol_version=DEFAULT_PROTOCOL_VERSION,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS,
-                 refresh_on_describe=False):
+                 refresh_on_describe=False,
+                 disallow_python_debug=DEFAULT_DISALLOW_PYTHON_DEBUG):
         cmd.Cmd.__init__(self, completekey=completekey)
         self.hostname = hostname
         self.port = port
@@ -551,6 +556,7 @@ class Shell(cmd.Cmd):
         self.single_statement = single_statement
 
         self.refresh_on_describe = refresh_on_describe
+        self.disallow_python_debug = disallow_python_debug
 
     @property
     def is_using_utf8(self):
@@ -1807,7 +1813,8 @@ class Shell(cmd.Cmd):
                          max_trace_wait=self.max_trace_wait, ssl=self.ssl,
                          request_timeout=self.session.default_timeout,
                          connect_timeout=self.conn.connect_timeout,
-                         refresh_on_describe=self.refresh_on_describe)
+                         refresh_on_describe=self.refresh_on_describe,
+                         disallow_python_debug=self.disallow_python_debug)
         subshell.cmdloop()
         f.close()
 
@@ -2035,6 +2042,10 @@ class Shell(cmd.Cmd):
     do_cls = do_clear
 
     def do_debug(self, parsed):
+        if self.disallow_python_debug:
+            self.printerr("*** Python debugger disabled because shell started with --disallow_python_debug")
+            return
+
         import pdb
         pdb.set_trace()
 
@@ -2259,6 +2270,7 @@ def read_options(cmdlineargs, environment):
     optvalues.username = option_with_default(configs.get, 'authentication', 'username')
     optvalues.password = option_with_default(rawconfigs.get, 'authentication', 'password')
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
+    optvalues.disallow_python_debug = option_with_default(configs.getboolean, 'authorization', 'disallow_python_debug', DEFAULT_DISALLOW_PYTHON_DEBUG)
     optvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
                                                 DEFAULT_COMPLETEKEY)
@@ -2452,7 +2464,8 @@ def main(options, hostname, port):
                       request_timeout=options.request_timeout,
                       connect_timeout=options.connect_timeout,
                       encoding=options.encoding,
-                      refresh_on_describe=options.refresh_on_describe)
+                      refresh_on_describe=options.refresh_on_describe,
+                      disallow_python_debug=options.disallow_python_debug)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS as e:
