@@ -1168,7 +1168,7 @@ class Shell(cmd.Cmd):
             # print header only
             self.print_formatted_result(formatted_names, None)
             if self.timing_enabled and time_end is not None:
-                self.writeresult("%f milliseconds elapsed" % (time_end*1000), color=BLUE)
+                self.writeresult("%.2f milliseconds elapsed" % (time_end*1000), color=BLUE)
             return
 
         cql_types = []
@@ -1186,7 +1186,7 @@ class Shell(cmd.Cmd):
             self.print_formatted_result(formatted_names, formatted_values)
 
         if self.timing_enabled and time_end is not None:
-            self.writeresult("%f milliseconds elapsed" % (time_end*1000), color=BLUE)
+            self.writeresult("%.2f milliseconds elapsed" % (time_end*1000), color=BLUE)
 
     def print_formatted_result(self, formatted_names, formatted_values):
         # determine column widths
