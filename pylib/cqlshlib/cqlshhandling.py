@@ -32,6 +32,7 @@ my_commands_ending_with_newline = (
     'login',
     'debug',
     'tracing',
+    'timing',
     'expand',
     'paging',
     'exit',
@@ -69,6 +70,7 @@ cqlsh_special_cmd_command_syntax_rules = r'''
                    | <debugCommand>
                    | <helpCommand>
                    | <tracingCommand>
+                   | <timingCommand>
                    | <expandCommand>
                    | <exitCommand>
                    | <pagingCommand>
@@ -179,6 +181,11 @@ cqlsh_tracing_cmd_syntax_rules = r'''
                    ;
 '''
 
+cqlsh_timing_cmd_syntax_rules = r'''
+<timingCommand> ::= "TIMING" ( switch=( "ON" | "OFF" ) )?
+                   ;
+'''
+
 cqlsh_expand_cmd_syntax_rules = r'''
 <expandCommand> ::= "EXPAND" ( switch=( "ON" | "OFF" ) )?
                    ;
@@ -224,6 +231,7 @@ cqlsh_extra_syntax_rules = cqlsh_cmd_syntax_rules + \
     cqlsh_debug_cmd_syntax_rules + \
     cqlsh_help_cmd_syntax_rules + \
     cqlsh_tracing_cmd_syntax_rules + \
+    cqlsh_timing_cmd_syntax_rules + \
     cqlsh_expand_cmd_syntax_rules + \
     cqlsh_paging_cmd_syntax_rules + \
     cqlsh_login_cmd_syntax_rules + \

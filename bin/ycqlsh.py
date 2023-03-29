@@ -46,6 +46,7 @@ import webbrowser
 from contextlib import contextmanager
 from glob import glob
 from uuid import UUID
+from time import time
 
 if sys.version_info.major != 3 and (sys.version_info.major == 2 and sys.version_info.minor != 7):
     sys.exit("\nCQL Shell supports only Python 3 or Python 2.7\n")
@@ -456,6 +457,7 @@ class Shell(cmd.Cmd):
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
+                 timing_enabled=False,
                  display_nanotime_format=DEFAULT_NANOTIME_FORMAT,
                  display_timestamp_format=DEFAULT_TIMESTAMP_FORMAT,
                  display_date_format=DEFAULT_DATE_FORMAT,
@@ -482,6 +484,7 @@ class Shell(cmd.Cmd):
         self.keyspace = keyspace
         self.ssl = ssl
         self.tracing_enabled = tracing_enabled
+        self.timing_enabled = timing_enabled
         self.page_size = self.default_page_size
         self.expand_enabled = expand_enabled
         if use_conn:
@@ -1079,6 +1082,10 @@ class Shell(cmd.Cmd):
         if not statement:
             return False, None
 
+        time_start = None
+        if self.timing_enabled:
+            time_start = time()
+
         future = self.session.execute_async(statement, trace=self.tracing_enabled)
         result = None
         try:
@@ -1089,6 +1096,10 @@ class Shell(cmd.Cmd):
         except Exception:
             import traceback
             self.printerr(traceback.format_exc())
+
+        time_end = None
+        if self.timing_enabled:
+            time_end = time() - time_start
 
         # Even if statement failed we try to refresh schema if not agreed (see CASSANDRA-9689)
         if not future.is_schema_agreed:
@@ -1103,19 +1114,19 @@ class Shell(cmd.Cmd):
             return False, None
 
         if statement.query_string[:6].lower() == 'select':
-            self.print_result(result, self.parse_for_select_meta(statement.query_string))
+            self.print_result(result, self.parse_for_select_meta(statement.query_string), time_end)
         elif statement.query_string.lower().startswith("list users") or statement.query_string.lower().startswith("list roles"):
-            self.print_result(result, self.get_table_meta('system_auth', 'roles'))
+            self.print_result(result, self.get_table_meta('system_auth', 'roles'), time_end)
         elif statement.query_string.lower().startswith("list"):
-            self.print_result(result, self.get_table_meta('system_auth', 'role_permissions'))
+            self.print_result(result, self.get_table_meta('system_auth', 'role_permissions'), time_end)
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
-            self.print_static_result(result, self.parse_for_update_meta(statement.query_string))
+            self.print_static_result(result, self.parse_for_update_meta(statement.query_string), time_end)
         self.flush_output()
         return True, future
 
-    def print_result(self, result, table_meta):
+    def print_result(self, result, table_meta, time_end=None):
         self.decoding_errors = []
 
         self.writeresult("")
@@ -1124,15 +1135,20 @@ class Shell(cmd.Cmd):
             while True:
                 if result.current_rows:
                     num_rows += len(result.current_rows)
-                    self.print_static_result(result, table_meta)
+                    self.print_static_result(result, table_meta, time_end)
                 if result.has_more_pages:
-                    input("---MORE---")
+                    if self.shunted_query_out is None:
+                        input("---MORE---")
+                    if self.timing_enabled:
+                        time_start = time()
                     result.fetch_next_page()
+                    if self.timing_enabled:
+                        time_end = time() - time_start
                 else:
                     break
         else:
             num_rows = len(result.current_rows)
-            self.print_static_result(result, table_meta)
+            self.print_static_result(result, table_meta, time_end)
         self.writeresult("(%d rows)" % num_rows)
 
         if self.decoding_errors:
@@ -1142,7 +1158,7 @@ class Shell(cmd.Cmd):
                 self.writeresult('%d more decoding errors suppressed.'
                                  % (len(self.decoding_errors) - 2), color=RED)
 
-    def print_static_result(self, result, table_meta):
+    def print_static_result(self, result, table_meta, time_end=None):
         if not result.column_names and not table_meta:
             return
 
@@ -1151,6 +1167,8 @@ class Shell(cmd.Cmd):
         if not result.current_rows:
             # print header only
             self.print_formatted_result(formatted_names, None)
+            if self.timing_enabled and time_end is not None:
+                self.writeresult("%.2f milliseconds elapsed" % (time_end*1000), color=BLUE)
             return
 
         cql_types = []
@@ -1166,6 +1184,9 @@ class Shell(cmd.Cmd):
             self.print_formatted_result_vertically(formatted_names, formatted_values)
         else:
             self.print_formatted_result(formatted_names, formatted_values)
+
+        if self.timing_enabled and time_end is not None:
+            self.writeresult("%.2f milliseconds elapsed" % (time_end*1000), color=BLUE)
 
     def print_formatted_result(self, formatted_names, formatted_values):
         # determine column widths
@@ -1804,6 +1825,7 @@ class Shell(cmd.Cmd):
                          encoding=self.encoding, stdin=f, tty=False, use_conn=self.conn,
                          cqlver=self.cql_version, keyspace=self.current_keyspace,
                          tracing_enabled=self.tracing_enabled,
+                         timing_enabled=self.timing_enabled,
                          display_nanotime_format=self.display_nanotime_format,
                          display_timestamp_format=self.display_timestamp_format,
                          display_date_format=self.display_date_format,
@@ -1900,6 +1922,26 @@ class Shell(cmd.Cmd):
           TRACING with no arguments shows the current tracing status.
         """
         self.tracing_enabled = SwitchCommand("TRACING", "Tracing").execute(self.tracing_enabled, parsed, self.printerr)
+
+    def do_timing(self, parsed):
+        """
+        TIMING [ycqlsh]
+
+          Enables or disables simple request round-trip timing, as measured on the current ycqlsh session.
+
+        TIMING ON
+
+          Enables round-trip timing for all further requests.
+
+        TIMING OFF
+
+          Disables timing.
+
+        TIMING
+
+          TIMING with no arguments shows the current timing status.
+        """
+        self.timing_enabled = SwitchCommand("TIMING", "Timing").execute(self.timing_enabled, parsed, self.printerr)
 
     def do_expand(self, parsed):
         """
