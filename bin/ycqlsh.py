@@ -1123,6 +1123,9 @@ class Shell(cmd.Cmd):
             # CAS INSERT/UPDATE
             self.writeresult("")
             self.print_static_result(result, self.parse_for_update_meta(statement.query_string), time_end)
+        else :
+            if self.timing_enabled and time_end is not None:
+                self.writeresult("%.2f milliseconds elapsed" % (time_end*1000), color=BLUE)
         self.flush_output()
         return True, future
 
