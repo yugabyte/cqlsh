@@ -1091,7 +1091,7 @@ class Shell(cmd.Cmd):
         try:
             result = future.result()
         except CQL_ERRORS as err:
-            err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
+            err_msg = ensure_text(err.message if (hasattr(err, 'message') and err.message.strip()!="") else str(err))
             self.printerr(str(err.__class__.__name__) + ": " + err_msg)
         except Exception:
             import traceback
