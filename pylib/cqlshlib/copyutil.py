@@ -2494,7 +2494,7 @@ class ImportProcess(ChildProcess):
             try:
                 return conv.convert_row(r)
             except Exception as err:
-                errors[err.message if hasattr(err, 'message') else str(err)].append(r)
+                errors[str(err)].append(r)
                 return None
 
         converted_rows = [_f for _f in [convert_row(r) for r in rows] if _f]
@@ -2606,7 +2606,7 @@ class ImportProcess(ChildProcess):
     def report_error(self, err, chunk=None, rows=None, attempts=1, final=True):
         if self.debug and sys.exc_info()[1] == err:
             traceback.print_exc()
-        err_msg = err.message if hasattr(err, 'message') else str(err)
+        err_msg = str(err)
         self.outmsg.send(ImportTaskError(err.__class__.__name__, err_msg, rows, attempts, final))
         if final and chunk is not None:
             self.update_chunk(rows, chunk)
