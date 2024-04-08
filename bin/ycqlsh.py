@@ -924,7 +924,7 @@ class Shell(cmd.Cmd):
                 except EOFError:
                     self.handle_eof()
                 except CQL_ERRORS as cqlerr:
-                    self.printerr(cqlerr.message)
+                    self.printerr(str(cqlerr))
                 except KeyboardInterrupt:
                     self.reset_statement()
                     print('')
@@ -1091,7 +1091,7 @@ class Shell(cmd.Cmd):
         try:
             result = future.result()
         except CQL_ERRORS as err:
-            err_msg = ensure_text(err.message if hasattr(err, 'message') else str(err))
+            err_msg = ensure_text(str(err))
             self.printerr(str(err.__class__.__name__) + ": " + err_msg)
         except Exception:
             import traceback

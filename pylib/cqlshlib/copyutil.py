@@ -141,7 +141,7 @@ class SendingChannel(object):
                     msg = self.pending_messages.get()
                     self.pipe.send(msg)
                 except Exception as e:
-                    printmsg('%s: %s' % (e.__class__.__name__, e.message if hasattr(e, 'message') else str(e)))
+                    printmsg('%s: %s' % (e.__class__.__name__, str(e)))
 
         feeding_thread = threading.Thread(target=feed)
         feeding_thread.setDaemon(True)
@@ -1335,7 +1335,7 @@ class FeedingProcess(mp.Process):
         try:
             reader.start()
         except IOError as exc:
-            self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
+            self.outmsg.send(ImportTaskError(exc.__class__.__name__, str(exc)))
 
         channels = self.worker_channels
         max_pending_chunks = self.max_pending_chunks
@@ -1364,7 +1364,7 @@ class FeedingProcess(mp.Process):
                     if rows:
                         sent += self.send_chunk(ch, rows)
                 except Exception as exc:
-                    self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message if hasattr(exc, 'message') else str(exc)))
+                    self.outmsg.send(ImportTaskError(exc.__class__.__name__, str(exc)))
 
                 if reader.exhausted:
                     break
@@ -2126,7 +2126,7 @@ class ImportConversion(object):
 
                 if self.debug:
                     traceback.print_exc()
-                raise ParseError("Failed to parse %s : %s" % (v, e.message if hasattr(e, 'message') else str(e)))
+                raise ParseError("Failed to parse %s : %s" % (v, str(e)))
 
         return [convert(conv, val) for conv, val in zip(converters, row)]
 
@@ -2494,7 +2494,7 @@ class ImportProcess(ChildProcess):
             try:
                 return conv.convert_row(r)
             except Exception as err:
-                errors[err.message if hasattr(err, 'message') else str(err)].append(r)
+                errors[str(err)].append(r)
                 return None
 
         converted_rows = [_f for _f in [convert_row(r) for r in rows] if _f]
@@ -2566,7 +2566,7 @@ class ImportProcess(ChildProcess):
                 pk = get_row_partition_key_values(row)
                 rows_by_ring_pos[get_ring_pos(ring, pk_to_token_value(pk))].append(row)
             except Exception as e:
-                errors[e.message if hasattr(e, 'message') else str(e)].append(row)
+                errors[str(e)].append(row)
 
         if errors:
             for msg, rows in errors.items():
@@ -2606,7 +2606,7 @@ class ImportProcess(ChildProcess):
     def report_error(self, err, chunk=None, rows=None, attempts=1, final=True):
         if self.debug and sys.exc_info()[1] == err:
             traceback.print_exc()
-        err_msg = err.message if hasattr(err, 'message') else str(err)
+        err_msg = str(err)
         self.outmsg.send(ImportTaskError(err.__class__.__name__, err_msg, rows, attempts, final))
         if final and chunk is not None:
             self.update_chunk(rows, chunk)
