@@ -140,12 +140,8 @@ for lib in third_parties:
     if lib_zip:
         sys.path.insert(0, lib_zip)
 
-# We cannot import six until we add its location to sys.path so the Python
-# interpreter can find it. Do not move this to the top.
-import six
-
-from six.moves import configparser, input
-from six import StringIO, ensure_text, ensure_str
+import configparser
+from io import StringIO
 
 warnings.filterwarnings("ignore", r".*blist.*")
 try:
@@ -883,10 +879,10 @@ class Shell(cmd.Cmd):
 
     def get_input_line(self, prompt=''):
         if self.tty:
-            self.lastcmd = input(prompt)
-            line = ensure_text(self.lastcmd) + '\n'
+            self.lastcmd = input(str(prompt))
+            line = self.lastcmd + '\n'
         else:
-            self.lastcmd = ensure_text(self.stdin.readline())
+            self.lastcmd = self.stdin.readline()
             line = self.lastcmd
             if not len(line):
                 raise EOFError
@@ -934,7 +930,6 @@ class Shell(cmd.Cmd):
         Returns true if the statement is complete and was handled (meaning it
         can be reset).
         """
-        statementtext = ensure_text(statementtext)
         try:
             statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
         except pylexotron.LexingError as e:
@@ -1030,7 +1025,6 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement):
-        statement = ensure_text(statement)
 
         stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.page_size if self.use_paging else None)
         success, future = self.perform_simple_statement(stmt)
@@ -1091,7 +1085,7 @@ class Shell(cmd.Cmd):
         try:
             result = future.result()
         except CQL_ERRORS as err:
-            err_msg = ensure_text(str(err))
+            err_msg = str(err)
             self.printerr(str(err.__class__.__name__) + ": " + err_msg)
         except Exception:
             import traceback
@@ -1745,7 +1739,7 @@ class Shell(cmd.Cmd):
         if fname is not None:
             fname = self.cql_unprotect_value(fname)
 
-        copyoptnames = list(map(six.text_type.lower, parsed.get_binding('optnames', ())))
+        copyoptnames = list(map(str.lower, parsed.get_binding('optnames', ())))
         copyoptvals = list(map(self.cql_unprotect_value, parsed.get_binding('optvals', ())))
         opts = dict(list(zip(copyoptnames, copyoptvals)))
 
@@ -2189,11 +2183,10 @@ class Shell(cmd.Cmd):
             out = self.query_out
 
         # convert Exceptions, etc to text
-        if not isinstance(text, six.text_type):
-            text = "{}".format(text)
+        if not isinstance(text, str):
+            text = str(text)
 
         to_write = self.applycolor(text, color) + ('\n' if newline else '')
-        to_write = ensure_str(to_write)
         out.write(to_write)
 
     def flush_output(self):
@@ -2305,7 +2298,7 @@ def should_use_color():
 
 
 def read_options(cmdlineargs, environment):
-    configs = configparser.SafeConfigParser() if sys.version_info < (3, 2) else configparser.ConfigParser()
+    configs = configparser.ConfigParser()
     configs.read(CONFIG_FILE)
 
     rawconfigs = configparser.RawConfigParser()
