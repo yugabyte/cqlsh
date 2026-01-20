@@ -331,7 +331,6 @@ formatter_for('double')(format_floating_point_type)
 def format_integer_type(val, colormap, thousands_sep=None, **_):
     # base-10 only for now; support others?
     bval = format_integer_with_thousands_sep(val, thousands_sep) if thousands_sep else str(val)
-    bval = bval
     return colorme(bval, colormap, 'int')
 
 
