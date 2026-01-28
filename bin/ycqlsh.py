@@ -140,6 +140,13 @@ for lib in third_parties:
     if lib_zip:
         sys.path.insert(0, lib_zip)
 
+for asyncorelibdir in ZIPLIB_DIRS:
+        asyncorelibs = glob(os.path.join(asyncorelibdir, 'pyasyncore'))
+        if asyncorelibs:
+            asyncorelib = max(asyncorelibs)
+
+sys.path.insert(0,asyncorelib)
+
 import configparser
 from io import StringIO
 
