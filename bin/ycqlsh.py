@@ -48,8 +48,8 @@ from glob import glob
 from uuid import UUID
 from time import time
 
-if sys.version_info.major != 3 and (sys.version_info.major == 2 and sys.version_info.minor != 7):
-    sys.exit("\nCQL Shell supports only Python 3 or Python 2.7\n")
+if sys.version_info < (3, 6):
+    sys.exit("\ncqlsh requires Python 3.6-3.12\n")
 
 # see CASSANDRA-10428
 if platform.python_implementation().startswith('Jython'):
@@ -139,6 +139,17 @@ for lib in third_parties:
     lib_zip = find_zip(lib)
     if lib_zip:
         sys.path.insert(0, lib_zip)
+
+# On Python 3.12, asyncore was removed from the stdlib; use bundled pyasyncore
+if sys.version_info[:2] >= (3, 12):
+    asyncorelib = None
+    for asyncorelibdir in ZIPLIB_DIRS:
+        asyncorelibs = glob(os.path.join(asyncorelibdir, 'pyasyncore'))
+        if asyncorelibs:
+            asyncorelib = max(asyncorelibs)
+            break
+    if asyncorelib:
+        sys.path.insert(0, asyncorelib)
 
 import configparser
 from io import StringIO
