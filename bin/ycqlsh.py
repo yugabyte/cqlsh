@@ -48,7 +48,7 @@ from glob import glob
 from uuid import UUID
 from time import time
 
-if sys.version_info < (3, 6) or sys.version_info > (3, 12):
+if sys.version_info < (3, 6):
     sys.exit("\ncqlsh requires Python 3.6-3.12\n")
 
 # see CASSANDRA-10428
@@ -141,7 +141,7 @@ for lib in third_parties:
         sys.path.insert(0, lib_zip)
 
 # On Python 3.12, asyncore was removed from the stdlib; use bundled pyasyncore
-if sys.version_info[:2] == (3, 12):
+if sys.version_info[:2] >= (3, 12):
     asyncorelib = None
     for asyncorelibdir in ZIPLIB_DIRS:
         asyncorelibs = glob(os.path.join(asyncorelibdir, 'pyasyncore'))
